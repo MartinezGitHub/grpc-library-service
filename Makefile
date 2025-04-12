@@ -88,7 +88,8 @@ bin-deps: .bin-deps
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1 && \
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0 && \
 	go install golang.org/x/tools/cmd/goimports@v0.19.0 && \
-	go install github.com/envoyproxy/protoc-gen-validate@v1.2.1
+	go install github.com/envoyproxy/protoc-gen-validate@v1.2.1 && \
+	go install github.com/golang/mock/mockgen@v1.6.0
 
 .create-bin:
 	rm -rf ./bin
@@ -108,9 +109,12 @@ fast-generate: .generate
 
 	rm -rf ~/.easyp/
 
+	go generate ./...
 	(PATH="$(PATH):$(LOCAL_BIN)" && $(EASYP_BIN) mod download && $(EASYP_BIN) generate)
-
+	go mod tidy
 	$(GOIMPORTS_BIN) -w .
+	$(LOCAL_BIN)/mockgen -destination=./internal/mocks/library_server_mock.go -package=mocks github.com/project/library/generated/api/library Library_GetAuthorBooksServer
+
 
 build:
 	go mod tidy
