@@ -47,10 +47,6 @@ const (
 	outboxTable         = "outbox"
 )
 
-func TestSuccess(t *testing.T) {
-	fmt.Println(uuid.NewString())
-}
-
 func TestMain(m *testing.M) {
 	host := os.Getenv("POSTGRES_HOST")
 	port := os.Getenv("POSTGRES_PORT")
@@ -452,10 +448,10 @@ func TestOutboxConsistency(t *testing.T) {
 		httpTestServer.URL+authorPath,
 		httpTestServer.URL+bookPath,
 	)
-	outboxConf.BatchSize = 100
+	outboxConf.BatchSize = 25
 	outboxConf.Workers = 7
 	outboxConf.WaitTimeMS = 100 * time.Millisecond
-	outboxConf.InProgressTTLMS = 0
+	outboxConf.InProgressTTLMS = 1000 * time.Millisecond
 
 	cmd := setupLibrary(t, executable, grpcPort, grpcGatewayPort, outboxConf)
 	t.Cleanup(func() {
@@ -499,7 +495,7 @@ func TestOutboxConsistency(t *testing.T) {
 			}
 
 			select {
-			case <-time.Tick(time.Millisecond * 300):
+			case <-time.Tick(time.Millisecond * 40):
 				stopLibrary(t, cmd)
 				cmd = setupLibrary(t, executable, grpcPort, grpcGatewayPort, outboxConf)
 			}
@@ -521,9 +517,9 @@ func TestOutboxConsistency(t *testing.T) {
 					AuthorIds: authorIDs[:rand.N(authorCount/3+1)],
 				})
 
+				time.Sleep(time.Millisecond * 50)
 				if err != nil {
 					errCounter.Add(1)
-					time.Sleep(time.Millisecond * 50)
 					continue
 				} else {
 					require.Equal(t, name, addedBook.GetBook().GetName())
@@ -534,7 +530,7 @@ func TestOutboxConsistency(t *testing.T) {
 	}
 
 	wg.Wait()
-	time.Sleep(time.Minute)
+	time.Sleep(time.Second * 20)
 
 	checkWg := new(sync.WaitGroup)
 	for _, aID := range authorIDs {
@@ -818,7 +814,6 @@ func TestLibraryConsistency(t *testing.T) {
 				})
 
 				if err != nil {
-					fmt.Println(errCounter.Load())
 					errCounter.Add(1)
 					time.Sleep(time.Millisecond * 300)
 				}
@@ -1512,8 +1507,8 @@ func setupLibrary(
 
 		cmd.Env = append(cmd.Env, "OUTBOX_WORKERS="+fmt.Sprint(outboxCfg.Workers))
 		cmd.Env = append(cmd.Env, "OUTBOX_BATCH_SIZE="+fmt.Sprint(outboxCfg.BatchSize))
-		cmd.Env = append(cmd.Env, "OUTBOX_WAIT_TIME_MS="+fmt.Sprint(int(outboxCfg.WaitTimeMS)))
-		cmd.Env = append(cmd.Env, "OUTBOX_IN_PROGRESS_TTL_MS="+fmt.Sprint(int(outboxCfg.InProgressTTLMS)))
+		cmd.Env = append(cmd.Env, "OUTBOX_WAIT_TIME_MS="+fmt.Sprint(outboxCfg.WaitTimeMS.Milliseconds()))
+		cmd.Env = append(cmd.Env, "OUTBOX_IN_PROGRESS_TTL_MS="+fmt.Sprint(outboxCfg.InProgressTTLMS.Milliseconds()))
 		cmd.Env = append(cmd.Env, "OUTBOX_AUTHOR_SEND_URL="+outboxCfg.AuthorSendURL)
 		cmd.Env = append(cmd.Env, "OUTBOX_BOOK_SEND_URL="+outboxCfg.BookSendURL)
 	}
