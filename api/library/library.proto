@@ -66,14 +66,14 @@ service Library {
 message Book {
   string id = 1 [(validate.rules).string.uuid = true];
   string name = 2;
-  repeated string author_id = 3 [(validate.rules).repeated = {min_items: 0, max_items: 100}];
+  repeated string author_id = 3 [(validate.rules).repeated = {min_items: 0, max_items: 1000}];
   google.protobuf.Timestamp created_at = 4;
   google.protobuf.Timestamp updated_at = 5;
 }
 
 message AddBookRequest {
   string name = 1;
-  repeated string author_ids = 2 [(validate.rules).repeated = {min_items: 0, max_items: 100}];
+  repeated string author_ids = 2 [(validate.rules).repeated = {min_items: 0, max_items: 1000}];
 }
 
 message AddBookResponse {
@@ -83,7 +83,7 @@ message AddBookResponse {
 message UpdateBookRequest {
   string id = 1 [(validate.rules).string.uuid = true];
   string name = 2;
-  repeated string author_ids = 3 [(validate.rules).repeated = {min_items: 0, max_items: 100}];
+  repeated string author_ids = 3 [(validate.rules).repeated = {min_items: 0, max_items: 1000}];
 }
 
 message UpdateBookResponse {}

@@ -2,6 +2,9 @@ package library
 
 import (
 	"context"
+	"encoding/json"
+
+	"github.com/project/library/internal/usecase/repository"
 
 	"go.uber.org/zap"
 
@@ -10,9 +13,31 @@ import (
 )
 
 func (l *libraryImpl) RegisterAuthor(ctx context.Context, logger *zap.Logger, authorName string) (string, error) {
-	author, err := l.authorRepository.CreateAuthor(ctx, logger, entity.Author{
-		ID:   uuid.New().String(),
-		Name: authorName,
+	var author entity.Author
+	err := l.transactor.WithTx(ctx, func(ctx context.Context) error {
+		var txErr error
+		author, txErr = l.authorRepository.CreateAuthor(ctx, logger, entity.Author{
+			ID:   uuid.New().String(),
+			Name: authorName,
+		})
+
+		if txErr != nil {
+			return txErr
+		}
+
+		serialized, txErr := json.Marshal(author)
+		if txErr != nil {
+			return txErr
+		}
+
+		idempotencyKey := repository.OutboxKindAuthor.String() + "_" + author.ID
+		txErr = l.outboxRepository.SendMessage(ctx, idempotencyKey, repository.OutboxKindAuthor, serialized)
+
+		if txErr != nil {
+			return txErr
+		}
+
+		return nil
 	})
 
 	if err != nil {

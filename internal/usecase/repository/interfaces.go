@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -22,4 +23,35 @@ type (
 		UpdateBookByID(ctx context.Context, logger *zap.Logger, bookID string, bookName string, authorIDs []string) error
 		StreamBooksByAuthorID(ctx context.Context, logger *zap.Logger, authorID string) (<-chan entity.Book, <-chan error)
 	}
+
+	OutboxRepository interface {
+		SendMessage(ctx context.Context, idempotencyKey string, kind OutboxKind, message []byte) error
+		GetMessages(ctx context.Context, batchSize int, inProgressTTL time.Duration) ([]OutboxData, error)
+		MarkAsProcessed(ctx context.Context, idempotencyKeys []string) error
+	}
+
+	OutboxData struct {
+		IdempotencyKey string
+		Kind           OutboxKind
+		RawData        []byte
+	}
 )
+
+type OutboxKind int
+
+const (
+	OutboxKindUndefined OutboxKind = iota
+	OutboxKindBook
+	OutboxKindAuthor
+)
+
+func (o OutboxKind) String() string {
+	switch o {
+	case OutboxKindBook:
+		return "book"
+	case OutboxKindAuthor:
+		return "author"
+	default:
+		return "undefined"
+	}
+}

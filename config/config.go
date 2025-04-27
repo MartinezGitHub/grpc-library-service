@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -12,6 +14,7 @@ type (
 	Config struct {
 		GRPC
 		PG
+		Outbox
 	}
 
 	GRPC struct {
@@ -28,17 +31,41 @@ type (
 		Password string `env:"POSTGRES_PASSWORD"`
 		MaxConn  string `env:"POSTGRES_MAX_CONN"`
 	}
+
+	//Outbox struct {
+	//	Enabled         bool          `env:"OUTBOX_ENABLED"`
+	//	Workers         int           `env:"OUTBOX_WORKERS"`
+	//	BatchSize       int           `env:"OUTBOX_BATCH_SIZE"`
+	//	WaitTimeMS      time.Duration `env:"OUTBOX_WAIT_TIME_MS"`
+	//	InProgressTTLMS time.Duration `env:"OUTBOX_IN_PROGRESS_TTL_MS"`
+	//	BookSendURL     string        `env:"OUTBOX_BOOK_SEND_URL"`
+	//}
+	Outbox struct {
+		Enabled         bool          `env:"OUTBOX_ENABLED"`
+		Workers         int           `env:"OUTBOX_WORKERS"`
+		BatchSize       int           `env:"OUTBOX_BATCH_SIZE"`
+		WaitTimeMS      time.Duration `env:"OUTBOX_WAIT_TIME_MS"`
+		InProgressTTLMS time.Duration `env:"OUTBOX_IN_PROGRESS_TTL_MS"`
+		AuthorSendURL   string        `env:"OUTBOX_AUTHOR_SEND_URL"`
+		BookSendURL     string        `env:"OUTBOX_BOOK_SEND_URL"`
+	}
 )
 
 var (
-	ErrMissingGRPCPort        = errors.New("GRPC_PORT environment variable is required")
-	ErrMissingGRPCGatewayPort = errors.New("GRPC_GATEWAY_PORT environment variable is required")
-	ErrMissingPostgresHost    = errors.New("POSTGRES_HOST environment variable is required")
-	ErrMissingPostgresPort    = errors.New("POSTGRES_PORT environment variable is required")
-	ErrMissingPostgresDB      = errors.New("POSTGRES_DB environment variable is required")
-	ErrMissingPostgresUser    = errors.New("POSTGRES_USER environment variable is required")
-	ErrMissingPostgresPass    = errors.New("POSTGRES_PASSWORD environment variable is required")
-	ErrMissingPostgresMaxConn = errors.New("POSTGRES_MAX_CONN environment variable is required")
+	ErrMissingGRPCPort            = errors.New("GRPC_PORT environment variable is required")
+	ErrMissingGRPCGatewayPort     = errors.New("GRPC_GATEWAY_PORT environment variable is required")
+	ErrMissingPostgresHost        = errors.New("POSTGRES_HOST environment variable is required")
+	ErrMissingPostgresPort        = errors.New("POSTGRES_PORT environment variable is required")
+	ErrMissingPostgresDB          = errors.New("POSTGRES_DB environment variable is required")
+	ErrMissingPostgresUser        = errors.New("POSTGRES_USER environment variable is required")
+	ErrMissingPostgresPass        = errors.New("POSTGRES_PASSWORD environment variable is required")
+	ErrMissingPostgresMaxConn     = errors.New("POSTGRES_MAX_CONN environment variable is required")
+	ErrMissingOutboxWorkers       = errors.New("OUTBOX_WORKERS environment variable is required when outbox is enabled")
+	ErrMissingOutboxBatchSize     = errors.New("OUTBOX_BATCH_SIZE environment variable is required when outbox is enabled")
+	ErrMissingOutboxWaitTime      = errors.New("OUTBOX_WAIT_TIME_MS environment variable is required when outbox is enabled")
+	ErrMissingOutboxInProgressTTL = errors.New("OUTBOX_IN_PROGRESS_TTL_MS environment variable is required when outbox is enabled")
+	ErrMissingOutboxBookSendURL   = errors.New("OUTBOX_BOOK_SEND_URL environment variable is required when outbox is enabled")
+	ErrMissingOutboxAuthorSendURL = errors.New("OUTBOX_AUTHOR_SEND_URL environment variable is required when outbox is enabled")
 )
 
 func NewConfig() (*Config, error) {
@@ -105,5 +132,82 @@ func NewConfig() (*Config, error) {
 		cfg.PG.DB,
 	)
 
+	var err error
+	enabledStr := os.Getenv("OUTBOX_ENABLED")
+	if enabledStr == "" {
+		cfg.Outbox.Enabled = false
+	} else {
+		cfg.Outbox.Enabled, err = strconv.ParseBool(enabledStr)
+		if err != nil {
+			return nil, errors.Wrap(err, "invalid OUTBOX_ENABLED value")
+		}
+	}
+
+	if cfg.Outbox.Enabled {
+		workersStr := os.Getenv("OUTBOX_WORKERS")
+		if workersStr == "" {
+			return nil, ErrMissingOutboxWorkers
+		}
+		cfg.Outbox.Workers, err = parseInt(workersStr)
+		if err != nil {
+			return nil, errors.Wrap(err, "invalid OUTBOX_WORKERS value")
+		}
+
+		batchSizeStr := os.Getenv("OUTBOX_BATCH_SIZE")
+		if batchSizeStr == "" {
+			return nil, ErrMissingOutboxBatchSize
+		}
+		cfg.Outbox.BatchSize, err = parseInt(batchSizeStr)
+		if err != nil {
+			return nil, errors.Wrap(err, "invalid OUTBOX_BATCH_SIZE value")
+		}
+
+		waitTimeStr := os.Getenv("OUTBOX_WAIT_TIME_MS")
+		if waitTimeStr == "" {
+			return nil, ErrMissingOutboxWaitTime
+		}
+		cfg.Outbox.WaitTimeMS, err = parseTime(waitTimeStr)
+		if err != nil {
+			return nil, errors.Wrap(err, "invalid OUTBOX_WAIT_TIME_MS value")
+		}
+
+		inProgressTTLStr := os.Getenv("OUTBOX_IN_PROGRESS_TTL_MS")
+		if inProgressTTLStr == "" {
+			return nil, ErrMissingOutboxInProgressTTL
+		}
+		cfg.Outbox.InProgressTTLMS, err = parseTime(inProgressTTLStr)
+		if err != nil {
+			return nil, errors.Wrap(err, "invalid OUTBOX_IN_PROGRESS_TTL_MS value")
+		}
+
+		bookSendURL := os.Getenv("OUTBOX_BOOK_SEND_URL")
+		if bookSendURL == "" {
+			return nil, ErrMissingOutboxBookSendURL
+		}
+		cfg.Outbox.BookSendURL = bookSendURL
+
+		authorSendURL := os.Getenv("OUTBOX_AUTHOR_SEND_URL")
+		if authorSendURL == "" {
+			return nil, ErrMissingOutboxAuthorSendURL
+		}
+		cfg.Outbox.AuthorSendURL = authorSendURL
+	}
+
 	return cfg, nil
+}
+
+func parseTime(s string) (time.Duration, error) {
+	t, err := parseInt(s)
+	if err != nil {
+		return time.Duration(0), err
+	}
+	return time.Duration(t) * time.Millisecond, nil
+}
+
+func parseInt(s string) (int, error) {
+	str, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return int(str), nil
 }

@@ -32,16 +32,22 @@ type libraryImpl struct {
 	logger           *zap.Logger
 	authorRepository repository.AuthorRepository
 	booksRepository  repository.BooksRepository
+	outboxRepository repository.OutboxRepository
+	transactor       repository.Transactor
 }
 
 func New(
 	logger *zap.Logger,
 	authorRepository repository.AuthorRepository,
 	booksRepository repository.BooksRepository,
+	outboxRepository repository.OutboxRepository,
+	transactor repository.Transactor,
 ) *libraryImpl {
 	return &libraryImpl{
 		logger:           logger,
 		authorRepository: authorRepository,
 		booksRepository:  booksRepository,
+		outboxRepository: outboxRepository,
+		transactor:       transactor,
 	}
 }

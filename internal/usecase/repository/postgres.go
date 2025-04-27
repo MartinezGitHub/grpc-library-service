@@ -130,17 +130,45 @@ func insertAuthors(ctx context.Context, tx pgx.Tx, bookID string, authorIDs []st
 	return nil
 }
 
-func (p postgresImpl) CreateBook(ctx context.Context, logger *zap.Logger, book entity.Book) (entity.Book, error) {
-	tx, err := p.db.Begin(ctx)
-	if err != nil {
-		return entity.Book{}, errors.Wrap(err, "failed to begin transaction")
-	}
-	defer func(tx pgx.Tx, ctx context.Context) {
-		err = tx.Rollback(ctx)
+func (p postgresImpl) CreateBook(ctx context.Context, logger *zap.Logger, book entity.Book) (resBook entity.Book, txErr error) {
+	var (
+		tx  pgx.Tx
+		err error
+	)
+	if tx, err = extractTx(ctx); err != nil {
+		tx, err = p.db.Begin(ctx)
+
 		if err != nil {
-			logger.Warn("transaction rollback failed", zap.Error(err))
+			return entity.Book{}, errors.Wrap(err, "failed to begin transaction")
 		}
-	}(tx, ctx)
+		defer func(tx pgx.Tx, ctx context.Context) {
+			if txErr != nil {
+				tx.Rollback(ctx)
+				//if e := tx.Rollback(ctx); err != nil {
+				//	logger.Error("rollback failed", zap.Error(e))
+				//}
+				return
+			}
+
+			tx.Commit(ctx)
+			//if e := tx.Commit(ctx); err != nil {
+			//	logger.Error("commit failed", zap.Error(e))
+			//	txErr = errors.Wrap(e, "commit failed")
+			//}
+		}(tx, ctx)
+
+	}
+
+	//if err != nil {
+	//	return entity.Book{}, errors.Wrap(err, "failed to begin transaction")
+	//}
+
+	//defer func(tx pgx.Tx, ctx context.Context) {
+	//	err = tx.Rollback(ctx)
+	//	if err != nil {
+	//		logger.Warn("transaction rollback failed", zap.Error(err))
+	//	}
+	//}(tx, ctx)
 
 	const queryBook = `
 	INSERT INTO book (id, name)
@@ -164,9 +192,9 @@ func (p postgresImpl) CreateBook(ctx context.Context, logger *zap.Logger, book e
 		return entity.Book{}, err
 	}
 
-	if err = tx.Commit(ctx); err != nil {
-		return entity.Book{}, errors.Wrap(err, "failed to commit transaction")
-	}
+	//if err = tx.Commit(ctx); err != nil {
+	//	return entity.Book{}, errors.Wrap(err, "failed to commit transaction")
+	//}
 
 	return result, nil
 }
@@ -248,7 +276,35 @@ func (p postgresImpl) UpdateBookByID(ctx context.Context, logger *zap.Logger, bo
 	return nil
 }
 
-func (p postgresImpl) CreateAuthor(ctx context.Context, _ *zap.Logger, author entity.Author) (entity.Author, error) {
+func (p postgresImpl) CreateAuthor(ctx context.Context, _ *zap.Logger, author entity.Author) (resAuthor entity.Author, txErr error) {
+	var (
+		tx  pgx.Tx
+		err error
+	)
+	if tx, err = extractTx(ctx); err != nil {
+		tx, err = p.db.Begin(ctx)
+
+		if err != nil {
+			return entity.Author{}, errors.Wrap(err, "failed to begin transaction")
+		}
+		defer func(tx pgx.Tx, ctx context.Context) {
+			if txErr != nil {
+				tx.Rollback(ctx)
+				//if e := tx.Rollback(ctx); err != nil {
+				//	logger.Error("rollback failed", zap.Error(e))
+				//}
+				return
+			}
+
+			tx.Commit(ctx)
+			//if e := tx.Commit(ctx); err != nil {
+			//	logger.Error("commit failed", zap.Error(e))
+			//	txErr = errors.Wrap(e, "commit failed")
+			//}
+		}(tx, ctx)
+
+	}
+
 	const query = `
 INSERT INTO author (id, name)
 VALUES ($1,$2)
@@ -257,7 +313,8 @@ VALUES ($1,$2)
 		ID:   author.ID,
 		Name: author.Name,
 	}
-	_, err := p.db.Exec(ctx, query, author.ID, author.Name)
+
+	_, err = tx.Exec(ctx, query, author.ID, author.Name)
 
 	if err != nil {
 		return entity.Author{}, errors.Wrap(err, "failed to insert author")
