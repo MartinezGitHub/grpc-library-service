@@ -3,10 +3,11 @@ package controller
 import (
 	"context"
 
-	"github.com/project/library/generated/api/library"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/project/library/generated/api/library"
 )
 
 func (i *implementation) AddBook(ctx context.Context, req *library.AddBookRequest) (*library.AddBookResponse, error) {
@@ -14,6 +15,7 @@ func (i *implementation) AddBook(ctx context.Context, req *library.AddBookReques
 		i.logger.Error("AddBook: validation failed: ", zap.Error(err))
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+
 	i.logger.Debug("Try to register book: " + req.GetName())
 	resp, err := i.booksUseCase.RegisterBook(ctx, i.logger, req.GetName(), req.GetAuthorIds())
 
@@ -23,13 +25,4 @@ func (i *implementation) AddBook(ctx context.Context, req *library.AddBookReques
 	}
 	i.logger.Info("Successfully register book: " + req.GetName())
 	return resp, err
-	//return &library.AddBookResponse{
-	//	Book: &library.Book{
-	//		Id:        book.ID,
-	//		Name:      book.Name,
-	//		AuthorId:  book.AuthorIDs,
-	//		CreatedAt: timestamppb.New(book.CreatedAt),
-	//		UpdatedAt: timestamppb.New(book.UpdatedAt),
-	//	},
-	//}, nil
 }

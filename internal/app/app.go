@@ -4,10 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/fsnotify/fsnotify"
-	"github.com/project/library/internal/entity"
-	libraryErrors "github.com/project/library/internal/errors"
-	"github.com/project/library/internal/usecase/outbox"
 	"net"
 	"net/http"
 	"os"
@@ -17,6 +13,11 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/project/library/internal/entity"
+	libraryErrors "github.com/project/library/internal/errors"
+	"github.com/project/library/internal/usecase/outbox"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/project/library/db"
@@ -80,6 +81,16 @@ func Run(logger *zap.Logger, cfg *config.Config) {
 	time.Sleep(SleepTime)
 }
 
+const DefaultTimeout = 30 * time.Second
+const DefaultKeepAlive = 180 * time.Second
+const DefaultMaxIdleConns = 100
+const DefaultMaxConnsPerHost = 100
+const DefaultIdleConnTimeout = 90 * time.Second
+const DefaultTLSHandshakeTimeout = 15 * time.Second
+const DefaultExpectContinueTimeout = 2 * time.Second
+
+var DefaultMaxIdleConnsPerHost = runtime.GOMAXPROCS(0) + 1
+
 func runOutbox(
 	ctx context.Context,
 	cfg *config.Config,
@@ -88,19 +99,19 @@ func runOutbox(
 	transactor repository.Transactor,
 ) {
 	dialer := &net.Dialer{
-		Timeout:   30 * time.Second,
-		KeepAlive: 180 * time.Second,
+		Timeout:   DefaultTimeout,
+		KeepAlive: DefaultKeepAlive,
 	}
 
 	transport := &http.Transport{
 		DialContext:           dialer.DialContext,
 		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
-		MaxConnsPerHost:       100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   15 * time.Second,
-		ExpectContinueTimeout: 2 * time.Second,
-		MaxIdleConnsPerHost:   runtime.GOMAXPROCS(0) + 1,
+		MaxIdleConns:          DefaultMaxIdleConns,
+		MaxConnsPerHost:       DefaultMaxConnsPerHost,
+		IdleConnTimeout:       DefaultIdleConnTimeout,
+		TLSHandshakeTimeout:   DefaultTLSHandshakeTimeout,
+		ExpectContinueTimeout: DefaultExpectContinueTimeout,
+		MaxIdleConnsPerHost:   DefaultMaxIdleConnsPerHost,
 	}
 
 	client := new(http.Client)
@@ -112,12 +123,6 @@ func runOutbox(
 	outboxService.Start(
 		ctx,
 		cfg,
-		//cfg.Outbox.Workers,
-		//cfg.Outbox.BatchSize,
-		//cfg.Outbox.WaitTimeMS,
-		//cfg.Outbox.InProgressTTLMS,
-		//int(cfg.MaxRetries),
-		//cfg.Outbox.BaseRetryTTL,
 	)
 }
 
@@ -141,26 +146,29 @@ func globalOutboxHandler(
 }
 
 func bookOutboxHandler(client *http.Client, url string, logger *zap.Logger) outbox.KindHandler {
-	return func(ctx context.Context, data []byte) error {
+	return func(_ context.Context, data []byte) error {
 		book := entity.Book{}
 		err := json.Unmarshal(data, &book)
 
 		if err != nil {
 			return libraryErrors.NewKindHandlerError("can not deserialize data in book outbox handler: "+err.Error(), -1)
-			//return fmt.Errorf("can not deserialize data in book outbox handler: %w", err)
 		}
 
 		response, err := client.Post(url, "application/json", strings.NewReader(book.ID))
+		defer func() {
+			closeErr := response.Body.Close()
+			if closeErr != nil {
+				logger.Error("failed to close response body: " + closeErr.Error())
+			}
+		}()
 
 		if err != nil {
 			return libraryErrors.NewKindHandlerError("can not send request to book outbox handler: "+err.Error(), -1)
-			//return fmt.Errorf("can not send request to book outbox handler: %w", err)
 		}
 
 		if response.StatusCode != http.StatusOK {
 			return libraryErrors.NewKindHandlerError("can not send request to book outbox handler, status code: "+
 				strconv.Itoa(response.StatusCode), response.StatusCode)
-			//return fmt.Errorf("can not send request to book outbox handler, status code: %d", response.StatusCode)
 		}
 
 		logger.Info("Send book: " + string(data))
@@ -170,26 +178,29 @@ func bookOutboxHandler(client *http.Client, url string, logger *zap.Logger) outb
 }
 
 func authorOutboxHandler(client *http.Client, url string, logger *zap.Logger) outbox.KindHandler {
-	return func(ctx context.Context, data []byte) error {
+	return func(_ context.Context, data []byte) error {
 		author := entity.Author{}
 		err := json.Unmarshal(data, &author)
 
 		if err != nil {
 			return libraryErrors.NewKindHandlerError("can not deserialize data in author outbox handler: "+err.Error(), -1)
-			//return fmt.Errorf("can not deserialize data in author outbox handler: %w", err)
 		}
 
 		response, err := client.Post(url, "application/json", strings.NewReader(author.ID))
+		defer func() {
+			closeErr := response.Body.Close()
+			if closeErr != nil {
+				logger.Error("failed to close response body: " + closeErr.Error())
+			}
+		}()
 
 		if err != nil {
 			return libraryErrors.NewKindHandlerError("can not send request to author outbox handler: "+err.Error(), -1)
-			//return fmt.Errorf("can not send request to author outbox handler: %w", err)
 		}
 
 		if response.StatusCode != http.StatusOK {
 			return libraryErrors.NewKindHandlerError("can not send request to author outbox handler, status code: "+
 				strconv.Itoa(response.StatusCode), response.StatusCode)
-			//return fmt.Errorf("can not send request to author outbox handler, status code: %d", response.StatusCode)
 		}
 
 		logger.Info("Send author: " + string(data))
@@ -242,10 +253,8 @@ func runGrpc(cfg *config.Config, logger *zap.Logger, libraryService generated.Li
 func runViper(cfg *config.Config, logger *zap.Logger) *viper.Viper {
 	logger.Info("run viper")
 	v := viper.New()
-	//v.SetConfigFile("../../config/" + cfg.Outbox.DynamicConfigFileName)
 	v.SetConfigFile("./config/config.yaml")
 	v.SetConfigType("yaml")
-	//v.AutomaticEnv()
 
 	if err := v.ReadInConfig(); err != nil {
 		logger.Error("Failed to read dynamic outbox config " + cfg.Outbox.DynamicConfigFileName + err.Error())
@@ -253,9 +262,7 @@ func runViper(cfg *config.Config, logger *zap.Logger) *viper.Viper {
 	}
 
 	v.WatchConfig()
-	v.OnConfigChange(func(e fsnotify.Event) {
-		//logger.Debug("Dynamic outbox config changed: " + e.Name)
-
+	v.OnConfigChange(func(_ fsnotify.Event) {
 		newMaxRetries := v.GetInt("outbox.maxRetries")
 		if newMaxRetries > 0 {
 			cfg.Outbox.Mu.Lock()

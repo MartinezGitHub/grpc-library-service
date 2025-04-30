@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/project/library/generated/api/library"
 	"github.com/project/library/internal/dto"
 
@@ -13,12 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/project/library/internal/entity"
 )
-
-//RegisterAuthor(ctx context.Context, logger *zap.Logger, authorName string) (*library.RegisterAuthorResponse, error)
-//ChangeAuthorInfo(ctx context.Context, logger *zap.Logger, authorID string, authorName string) error
-//StreamBooksForAuthor(ctx context.Context, logger *zap.Logger, authorID string) (<-chan dto.Book, <-chan error)
-//GetAuthorInfo(ctx context.Context, logger *zap.Logger, authorID string) (*library.GetAuthorInfoResponse, error)
-//GetAuthorByID(ctx context.Context, logger *zap.Logger, authorID string) (entity.Author, error)
 
 func (l *libraryImpl) RegisterAuthor(ctx context.Context, logger *zap.Logger, authorName string) (*library.RegisterAuthorResponse, error) {
 	var author entity.Author
@@ -96,5 +91,4 @@ func (l *libraryImpl) StreamBooksForAuthor(ctx context.Context, logger *zap.Logg
 	}()
 
 	return dtoCh, errCh
-	//return l.booksRepository.StreamBooksByAuthorID(ctx, logger, authorID)
 }

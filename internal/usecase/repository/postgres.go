@@ -143,32 +143,18 @@ func (p postgresImpl) CreateBook(ctx context.Context, logger *zap.Logger, book e
 		}
 		defer func(tx pgx.Tx, ctx context.Context) {
 			if txErr != nil {
-				tx.Rollback(ctx)
-				//if e := tx.Rollback(ctx); err != nil {
-				//	logger.Error("rollback failed", zap.Error(e))
-				//}
+				if e := tx.Rollback(ctx); err != nil {
+					logger.Error("rollback failed", zap.Error(e))
+				}
 				return
 			}
 
-			tx.Commit(ctx)
-			//if e := tx.Commit(ctx); err != nil {
-			//	logger.Error("commit failed", zap.Error(e))
-			//	txErr = errors.Wrap(e, "commit failed")
-			//}
+			if e := tx.Commit(ctx); err != nil {
+				logger.Error("commit failed", zap.Error(e))
+				txErr = errors.Wrap(e, "commit failed")
+			}
 		}(tx, ctx)
-
 	}
-
-	//if err != nil {
-	//	return entity.Book{}, errors.Wrap(err, "failed to begin transaction")
-	//}
-
-	//defer func(tx pgx.Tx, ctx context.Context) {
-	//	err = tx.Rollback(ctx)
-	//	if err != nil {
-	//		logger.Warn("transaction rollback failed", zap.Error(err))
-	//	}
-	//}(tx, ctx)
 
 	const queryBook = `
 	INSERT INTO book (id, name)
@@ -191,10 +177,6 @@ func (p postgresImpl) CreateBook(ctx context.Context, logger *zap.Logger, book e
 	if err != nil {
 		return entity.Book{}, err
 	}
-
-	//if err = tx.Commit(ctx); err != nil {
-	//	return entity.Book{}, errors.Wrap(err, "failed to commit transaction")
-	//}
 
 	return result, nil
 }
@@ -276,7 +258,7 @@ func (p postgresImpl) UpdateBookByID(ctx context.Context, logger *zap.Logger, bo
 	return nil
 }
 
-func (p postgresImpl) CreateAuthor(ctx context.Context, _ *zap.Logger, author entity.Author) (resAuthor entity.Author, txErr error) {
+func (p postgresImpl) CreateAuthor(ctx context.Context, logger *zap.Logger, author entity.Author) (resAuthor entity.Author, txErr error) {
 	var (
 		tx  pgx.Tx
 		err error
@@ -289,20 +271,17 @@ func (p postgresImpl) CreateAuthor(ctx context.Context, _ *zap.Logger, author en
 		}
 		defer func(tx pgx.Tx, ctx context.Context) {
 			if txErr != nil {
-				tx.Rollback(ctx)
-				//if e := tx.Rollback(ctx); err != nil {
-				//	logger.Error("rollback failed", zap.Error(e))
-				//}
+				if e := tx.Rollback(ctx); err != nil {
+					logger.Error("rollback failed", zap.Error(e))
+				}
 				return
 			}
 
-			tx.Commit(ctx)
-			//if e := tx.Commit(ctx); err != nil {
-			//	logger.Error("commit failed", zap.Error(e))
-			//	txErr = errors.Wrap(e, "commit failed")
-			//}
+			if e := tx.Commit(ctx); err != nil {
+				logger.Error("commit failed", zap.Error(e))
+				txErr = errors.Wrap(e, "commit failed")
+			}
 		}(tx, ctx)
-
 	}
 
 	const query = `

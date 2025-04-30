@@ -25,7 +25,4 @@ func (i *implementation) RegisterAuthor(ctx context.Context, req *library.Regist
 	}
 	i.logger.Info("Successfully register author with name: " + req.GetName())
 	return resp, nil
-	//return &library.RegisterAuthorResponse{
-	//	Id: authorID,
-	//}, nil
 }

@@ -2,11 +2,11 @@ package repository
 
 import (
 	"context"
-	"fmt"
+	"strconv"
+	"time"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"time"
-	//"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type DBPool interface {
@@ -29,7 +29,6 @@ func NewOutboxRepository(db DBPool) OutboxRepository {
 }
 
 func (o outboxRepository) SendMessage(ctx context.Context, idempotencyKey string, kind OutboxKind, message []byte) error {
-
 	const query = `
 INSERT INTO outbox (idempotency_key, data, status, kind)
 VALUES ($1, $2, 'CREATED', $3)
@@ -68,9 +67,7 @@ WHERE idempotency_key IN (
 RETURNING idempotency_key, data, kind, attempts;
 `
 
-	internal := fmt.Sprintf("%d ms", inProgressTTL.Milliseconds())
-
-	//internal := strconv.Itoa(int(inProgressTTL.Milliseconds())) + " ms"
+	internal := strconv.Itoa(int(inProgressTTL.Milliseconds())) + " ms"
 
 	var (
 		err  error
@@ -81,7 +78,6 @@ RETURNING idempotency_key, data, kind, attempts;
 		rows, err = tx.Query(ctx, query, internal, batchSize)
 	} else {
 		rows, err = o.db.Query(ctx, query, internal, batchSize)
-
 	}
 
 	if err != nil {
@@ -113,7 +109,6 @@ RETURNING idempotency_key, data, kind, attempts;
 	}
 
 	return result, rows.Err()
-
 }
 
 func (o outboxRepository) MarkAsProcessed(ctx context.Context, idempotencyKeys []string) error {

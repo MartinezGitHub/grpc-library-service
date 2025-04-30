@@ -23,8 +23,4 @@ func (i *implementation) GetAuthorInfo(ctx context.Context, req *library.GetAuth
 	}
 	i.logger.Info("Successfully get info for author: " + req.GetId())
 	return resp, nil
-	//return &library.GetAuthorInfoResponse{
-	//	Id:   req.GetId(),
-	//	Name: name,
-	//}, nil
 }

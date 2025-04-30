@@ -26,13 +26,4 @@ func (i *implementation) GetBookInfo(ctx context.Context, req *library.GetBookIn
 	i.logger.Info("Successfully get info for book: " + req.GetId())
 
 	return resp, nil
-	//return &library.GetBookInfoResponse{
-	//	Book: &library.Book{
-	//		Id:        book.ID,
-	//		Name:      book.Name,
-	//		AuthorId:  book.AuthorIDs,
-	//		CreatedAt: timestamppb.New(book.CreatedAt),
-	//		UpdatedAt: timestamppb.New(book.UpdatedAt),
-	//	},
-	//}, nil
 }

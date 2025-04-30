@@ -3,12 +3,13 @@ package outbox
 import (
 	"context"
 	"errors"
+	"sync"
+	"time"
+
 	"github.com/project/library/config"
 	libraryErrors "github.com/project/library/internal/errors"
 	"github.com/project/library/internal/usecase/repository"
 	"go.uber.org/zap"
-	"sync"
-	"time"
 )
 
 type GlobalHandler = func(kind repository.OutboxKind) (KindHandler, error)
@@ -16,7 +17,6 @@ type KindHandler = func(ctx context.Context, data []byte) error
 
 type Outbox interface {
 	Start(ctx context.Context, cfg *config.Config)
-	//Start(ctx context.Context, workers int, batchSize int, waitTime time.Duration, inProgressTTL time.Duration, maxRetries int, baseRetryTTL time.Duration)
 }
 
 var _ Outbox = (*outboxImpl)(nil)
@@ -48,33 +48,19 @@ func New(
 func (o *outboxImpl) Start(
 	ctx context.Context,
 	cfg *config.Config,
-	// workers int,
-	// batchSize int,
-	// waitTime time.Duration,
-	// inProgressTTL time.Duration,
-	// maxRetries int,
-	// baseRetryTTL time.Duration,
 ) {
 	wg := new(sync.WaitGroup)
 
 	for workerID := 1; workerID <= cfg.Workers; workerID++ {
 		wg.Add(1)
 		go o.worker(ctx, wg, cfg)
-		//go o.worker(ctx, wg, batchSize, waitTime, inProgressTTL, maxRetries, baseRetryTTL)
 	}
-
-	return
 }
 
 func (o *outboxImpl) worker(
 	ctx context.Context,
 	wg *sync.WaitGroup,
 	cfg *config.Config,
-	// batchSize int,
-	// waitTime time.Duration,
-	// inProgressTTL time.Duration,
-	// maxRetries int,
-	// baseRetryTTL time.Duration,
 ) {
 	defer wg.Done()
 
@@ -85,8 +71,6 @@ func (o *outboxImpl) worker(
 			return
 		default:
 		}
-
-		//time.Sleep(waitTime)
 
 		select {
 		case <-time.After(cfg.WaitTimeMS):
@@ -100,7 +84,6 @@ func (o *outboxImpl) worker(
 		}
 
 		err := o.transactor.WithTx(ctx, func(ctx context.Context) error {
-
 			if err := ctx.Err(); err != nil {
 				return err
 			}
@@ -112,7 +95,6 @@ func (o *outboxImpl) worker(
 				return err
 			}
 
-			//o.logger.Info("messages fetched", zap.Int("size", len(messages)))
 			successKeys := make([]string, 0, len(messages))
 			failedKeys := make([]string, 0, len(messages))
 			retryKeys := make([]string, 0, len(messages))
@@ -149,7 +131,6 @@ func (o *outboxImpl) worker(
 					}
 
 					continue
-
 				}
 
 				successKeys = append(successKeys, key)
