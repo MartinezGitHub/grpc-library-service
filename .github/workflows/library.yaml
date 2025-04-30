@@ -98,7 +98,8 @@ jobs:
             internal/app
             db/migrate
             repository/postgres\.go$
-            usecase/outbox/outbox\.go$
+            repository/outbox\.go$
+            repository/transactor\.go$
       - name: Generate unique names
         run: |
           UNIQUE_ID=$(echo "${GITHUB_RUN_ID}_$(openssl rand -hex 6)" | sha256sum | cut -c1-12)
