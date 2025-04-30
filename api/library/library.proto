@@ -132,3 +132,11 @@ message GetAuthorInfoResponse {
 message GetAuthorBooksRequest {
   string author_id = 1 [(validate.rules).string.uuid = true];
 }
+
+message BookToStream {
+  string id = 1;
+  string name = 2;
+  repeated string author_id = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}

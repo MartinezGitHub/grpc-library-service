@@ -4,17 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/fsnotify/fsnotify"
+	"github.com/project/library/internal/entity"
+	libraryErrors "github.com/project/library/internal/errors"
+	"github.com/project/library/internal/usecase/outbox"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
-
-	"github.com/project/library/internal/entity"
-	"github.com/project/library/internal/usecase/outbox"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/project/library/db"
@@ -26,6 +28,7 @@ import (
 	"github.com/project/library/internal/controller"
 	"github.com/project/library/internal/usecase/library"
 	"github.com/project/library/internal/usecase/repository"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -49,6 +52,16 @@ func Run(logger *zap.Logger, cfg *config.Config) {
 	defer dbPool.Close()
 
 	db.SetupPostgres(dbPool, logger)
+
+	var v *viper.Viper
+	if cfg.Outbox.DynamicConfigEnabled {
+		v = runViper(cfg, logger)
+		defer func() {
+			if v != nil {
+				v.OnConfigChange(nil)
+			}
+		}()
+	}
 
 	repo := repository.NewPostgresRepository(dbPool)
 	outboxRepository := repository.NewOutboxRepository(dbPool)
@@ -98,14 +111,16 @@ func runOutbox(
 
 	outboxService.Start(
 		ctx,
-		cfg.Outbox.Workers,
-		cfg.Outbox.BatchSize,
-		cfg.Outbox.WaitTimeMS,
-		cfg.Outbox.InProgressTTLMS,
+		cfg,
+		//cfg.Outbox.Workers,
+		//cfg.Outbox.BatchSize,
+		//cfg.Outbox.WaitTimeMS,
+		//cfg.Outbox.InProgressTTLMS,
+		//int(cfg.MaxRetries),
+		//cfg.Outbox.BaseRetryTTL,
 	)
 }
 
-// add authorURL
 func globalOutboxHandler(
 	client *http.Client,
 	bookURL string,
@@ -131,17 +146,21 @@ func bookOutboxHandler(client *http.Client, url string, logger *zap.Logger) outb
 		err := json.Unmarshal(data, &book)
 
 		if err != nil {
-			return fmt.Errorf("can not deserialize data in book outbox handler: %w", err)
+			return libraryErrors.NewKindHandlerError("can not deserialize data in book outbox handler: "+err.Error(), -1)
+			//return fmt.Errorf("can not deserialize data in book outbox handler: %w", err)
 		}
 
 		response, err := client.Post(url, "application/json", strings.NewReader(book.ID))
 
 		if err != nil {
-			return fmt.Errorf("can not send request to book outbox handler: %w", err)
+			return libraryErrors.NewKindHandlerError("can not send request to book outbox handler: "+err.Error(), -1)
+			//return fmt.Errorf("can not send request to book outbox handler: %w", err)
 		}
 
 		if response.StatusCode != http.StatusOK {
-			return fmt.Errorf("can not send request to book outbox handler, status code: %d", response.StatusCode)
+			return libraryErrors.NewKindHandlerError("can not send request to book outbox handler, status code: "+
+				strconv.Itoa(response.StatusCode), response.StatusCode)
+			//return fmt.Errorf("can not send request to book outbox handler, status code: %d", response.StatusCode)
 		}
 
 		logger.Info("Send book: " + string(data))
@@ -156,17 +175,21 @@ func authorOutboxHandler(client *http.Client, url string, logger *zap.Logger) ou
 		err := json.Unmarshal(data, &author)
 
 		if err != nil {
-			return fmt.Errorf("can not deserialize data in author outbox handler: %w", err)
+			return libraryErrors.NewKindHandlerError("can not deserialize data in author outbox handler: "+err.Error(), -1)
+			//return fmt.Errorf("can not deserialize data in author outbox handler: %w", err)
 		}
 
 		response, err := client.Post(url, "application/json", strings.NewReader(author.ID))
 
 		if err != nil {
-			return fmt.Errorf("can not send request to author outbox handler: %w", err)
+			return libraryErrors.NewKindHandlerError("can not send request to author outbox handler: "+err.Error(), -1)
+			//return fmt.Errorf("can not send request to author outbox handler: %w", err)
 		}
 
 		if response.StatusCode != http.StatusOK {
-			return fmt.Errorf("can not send request to author outbox handler, status code: %d", response.StatusCode)
+			return libraryErrors.NewKindHandlerError("can not send request to author outbox handler, status code: "+
+				strconv.Itoa(response.StatusCode), response.StatusCode)
+			//return fmt.Errorf("can not send request to author outbox handler, status code: %d", response.StatusCode)
 		}
 
 		logger.Info("Send author: " + string(data))
@@ -214,4 +237,42 @@ func runGrpc(cfg *config.Config, logger *zap.Logger, libraryService generated.Li
 	if err = s.Serve(lis); err != nil {
 		logger.Error("grpc server listen error", zap.Error(err))
 	}
+}
+
+func runViper(cfg *config.Config, logger *zap.Logger) *viper.Viper {
+	logger.Info("run viper")
+	v := viper.New()
+	//v.SetConfigFile("../../config/" + cfg.Outbox.DynamicConfigFileName)
+	v.SetConfigFile("./config/config.yaml")
+	v.SetConfigType("yaml")
+	//v.AutomaticEnv()
+
+	if err := v.ReadInConfig(); err != nil {
+		logger.Error("Failed to read dynamic outbox config " + cfg.Outbox.DynamicConfigFileName + err.Error())
+		return nil
+	}
+
+	v.WatchConfig()
+	v.OnConfigChange(func(e fsnotify.Event) {
+		//logger.Debug("Dynamic outbox config changed: " + e.Name)
+
+		newMaxRetries := v.GetInt("outbox.maxRetries")
+		if newMaxRetries > 0 {
+			cfg.Outbox.Mu.Lock()
+			cfg.Outbox.MaxRetries = newMaxRetries
+			cfg.Outbox.Mu.Unlock()
+			logger.Debug("Updated outbox max retries",
+				zap.Int("new_value", newMaxRetries))
+		}
+	})
+
+	if initialMaxRetries := v.GetInt("outbox.maxRetries"); initialMaxRetries > 0 {
+		logger.Debug("Initialize outbox max retries",
+			zap.Int("new_value", initialMaxRetries))
+		cfg.Outbox.Mu.Lock()
+		cfg.Outbox.MaxRetries = initialMaxRetries
+		cfg.Outbox.Mu.Unlock()
+	}
+
+	return v
 }

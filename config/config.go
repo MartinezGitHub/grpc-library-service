@@ -5,10 +5,16 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 )
+
+const DefaultMaxRetries = 5
+const DefaultBaseRetryTTL = time.Second
+const DefaultDynamicConfigFileName = "config.yaml"
 
 type (
 	Config struct {
@@ -32,22 +38,19 @@ type (
 		MaxConn  string `env:"POSTGRES_MAX_CONN"`
 	}
 
-	//Outbox struct {
-	//	Enabled         bool          `env:"OUTBOX_ENABLED"`
-	//	Workers         int           `env:"OUTBOX_WORKERS"`
-	//	BatchSize       int           `env:"OUTBOX_BATCH_SIZE"`
-	//	WaitTimeMS      time.Duration `env:"OUTBOX_WAIT_TIME_MS"`
-	//	InProgressTTLMS time.Duration `env:"OUTBOX_IN_PROGRESS_TTL_MS"`
-	//	BookSendURL     string        `env:"OUTBOX_BOOK_SEND_URL"`
-	//}
 	Outbox struct {
-		Enabled         bool          `env:"OUTBOX_ENABLED"`
-		Workers         int           `env:"OUTBOX_WORKERS"`
-		BatchSize       int           `env:"OUTBOX_BATCH_SIZE"`
-		WaitTimeMS      time.Duration `env:"OUTBOX_WAIT_TIME_MS"`
-		InProgressTTLMS time.Duration `env:"OUTBOX_IN_PROGRESS_TTL_MS"`
-		AuthorSendURL   string        `env:"OUTBOX_AUTHOR_SEND_URL"`
-		BookSendURL     string        `env:"OUTBOX_BOOK_SEND_URL"`
+		Mu                    sync.RWMutex
+		Enabled               bool          `env:"OUTBOX_ENABLED"`
+		DynamicConfigEnabled  bool          `env:"OUTBOX_DYNAMIC_CONFIG_ENABLED"`
+		Workers               int           `env:"OUTBOX_WORKERS"`
+		BatchSize             int           `env:"OUTBOX_BATCH_SIZE"`
+		WaitTimeMS            time.Duration `env:"OUTBOX_WAIT_TIME_MS"`
+		InProgressTTLMS       time.Duration `env:"OUTBOX_IN_PROGRESS_TTL_MS"`
+		AuthorSendURL         string        `env:"OUTBOX_AUTHOR_SEND_URL"`
+		BookSendURL           string        `env:"OUTBOX_BOOK_SEND_URL"`
+		MaxRetries            int
+		BaseRetryTTL          time.Duration
+		DynamicConfigFileName string
 	}
 )
 
@@ -191,6 +194,24 @@ func NewConfig() (*Config, error) {
 			return nil, ErrMissingOutboxAuthorSendURL
 		}
 		cfg.Outbox.AuthorSendURL = authorSendURL
+
+		dynamicConfigEnabled := os.Getenv("OUTBOX_DYNAMIC_CONFIG_ENABLED")
+		fmt.Println(dynamicConfigEnabled)
+		if strings.Compare(dynamicConfigEnabled, "true") == 0 {
+			fmt.Println("jhghjghghjggh")
+			cfg.Outbox.DynamicConfigEnabled = true
+		} else {
+			cfg.Outbox.DynamicConfigEnabled = false
+		}
+		//if dynamicConfigEnabled != "true" {
+		//	cfg.Outbox.DynamicConfigEnabled = false
+		//} else {
+		//
+		//}
+
+		cfg.Outbox.MaxRetries = DefaultMaxRetries
+		cfg.Outbox.BaseRetryTTL = DefaultBaseRetryTTL
+		cfg.DynamicConfigFileName = DefaultDynamicConfigFileName
 	}
 
 	return cfg, nil

@@ -17,14 +17,15 @@ func (i *implementation) RegisterAuthor(ctx context.Context, req *library.Regist
 	}
 
 	i.logger.Debug("Try to register author with name: " + req.GetName())
-	authorID, err := i.authorUseCase.RegisterAuthor(ctx, i.logger, req.GetName())
+	resp, err := i.authorUseCase.RegisterAuthor(ctx, i.logger, req.GetName())
 
 	if err != nil {
 		i.logger.Error("Failed to register author with name: " + req.GetName())
 		return nil, i.convertErr(err)
 	}
 	i.logger.Info("Successfully register author with name: " + req.GetName())
-	return &library.RegisterAuthorResponse{
-		Id: authorID,
-	}, nil
+	return resp, nil
+	//return &library.RegisterAuthorResponse{
+	//	Id: authorID,
+	//}, nil
 }

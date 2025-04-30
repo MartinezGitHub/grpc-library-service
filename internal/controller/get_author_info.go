@@ -16,14 +16,15 @@ func (i *implementation) GetAuthorInfo(ctx context.Context, req *library.GetAuth
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 	i.logger.Debug("Try to get info for author: " + req.GetId())
-	name, err := i.authorUseCase.GetAuthorInfo(ctx, i.logger, req.GetId())
+	resp, err := i.authorUseCase.GetAuthorInfo(ctx, i.logger, req.GetId())
 	if err != nil {
 		i.logger.Error("GetAuthorInfo failed: ", zap.Error(err))
 		return nil, i.convertErr(err)
 	}
 	i.logger.Info("Successfully get info for author: " + req.GetId())
-	return &library.GetAuthorInfoResponse{
-		Id:   req.GetId(),
-		Name: name,
-	}, nil
+	return resp, nil
+	//return &library.GetAuthorInfoResponse{
+	//	Id:   req.GetId(),
+	//	Name: name,
+	//}, nil
 }

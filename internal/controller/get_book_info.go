@@ -3,8 +3,6 @@ package controller
 import (
 	"context"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"go.uber.org/zap"
 
 	"github.com/project/library/generated/api/library"
@@ -19,7 +17,7 @@ func (i *implementation) GetBookInfo(ctx context.Context, req *library.GetBookIn
 	}
 
 	i.logger.Debug("Try to get info for book: " + req.GetId())
-	book, err := i.booksUseCase.GetBook(ctx, i.logger, req.GetId())
+	resp, err := i.booksUseCase.GetBook(ctx, i.logger, req.GetId())
 	if err != nil {
 		i.logger.Error("GetBookInfo failed: ", zap.Error(err))
 		return nil, i.convertErr(err)
@@ -27,13 +25,14 @@ func (i *implementation) GetBookInfo(ctx context.Context, req *library.GetBookIn
 
 	i.logger.Info("Successfully get info for book: " + req.GetId())
 
-	return &library.GetBookInfoResponse{
-		Book: &library.Book{
-			Id:        book.ID,
-			Name:      book.Name,
-			AuthorId:  book.AuthorIDs,
-			CreatedAt: timestamppb.New(book.CreatedAt),
-			UpdatedAt: timestamppb.New(book.UpdatedAt),
-		},
-	}, nil
+	return resp, nil
+	//return &library.GetBookInfoResponse{
+	//	Book: &library.Book{
+	//		Id:        book.ID,
+	//		Name:      book.Name,
+	//		AuthorId:  book.AuthorIDs,
+	//		CreatedAt: timestamppb.New(book.CreatedAt),
+	//		UpdatedAt: timestamppb.New(book.UpdatedAt),
+	//	},
+	//}, nil
 }

@@ -3,8 +3,6 @@ package controller
 import (
 	"context"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/project/library/generated/api/library"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -17,20 +15,21 @@ func (i *implementation) AddBook(ctx context.Context, req *library.AddBookReques
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 	i.logger.Debug("Try to register book: " + req.GetName())
-	book, err := i.booksUseCase.RegisterBook(ctx, i.logger, req.GetName(), req.GetAuthorIds())
+	resp, err := i.booksUseCase.RegisterBook(ctx, i.logger, req.GetName(), req.GetAuthorIds())
 
 	if err != nil {
 		i.logger.Error("UseCase error:", zap.Error(err))
 		return nil, i.convertErr(err)
 	}
 	i.logger.Info("Successfully register book: " + req.GetName())
-	return &library.AddBookResponse{
-		Book: &library.Book{
-			Id:        book.ID,
-			Name:      book.Name,
-			AuthorId:  book.AuthorIDs,
-			CreatedAt: timestamppb.New(book.CreatedAt),
-			UpdatedAt: timestamppb.New(book.UpdatedAt),
-		},
-	}, nil
+	return resp, err
+	//return &library.AddBookResponse{
+	//	Book: &library.Book{
+	//		Id:        book.ID,
+	//		Name:      book.Name,
+	//		AuthorId:  book.AuthorIDs,
+	//		CreatedAt: timestamppb.New(book.CreatedAt),
+	//		UpdatedAt: timestamppb.New(book.UpdatedAt),
+	//	},
+	//}, nil
 }

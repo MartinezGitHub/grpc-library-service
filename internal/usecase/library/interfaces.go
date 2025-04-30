@@ -2,6 +2,8 @@ package library
 
 import (
 	"context"
+	"github.com/project/library/generated/api/library"
+	"github.com/project/library/internal/dto"
 
 	"github.com/project/library/internal/entity"
 	"github.com/project/library/internal/usecase/repository"
@@ -11,16 +13,16 @@ import (
 //go:generate ../../../bin/mockgen  -source=interfaces.go -destination=../../mocks/library_mock.go -package=mocks
 type (
 	AuthorUseCase interface {
-		RegisterAuthor(ctx context.Context, logger *zap.Logger, authorName string) (string, error)
+		RegisterAuthor(ctx context.Context, logger *zap.Logger, authorName string) (*library.RegisterAuthorResponse, error)
 		ChangeAuthorInfo(ctx context.Context, logger *zap.Logger, authorID string, authorName string) error
-		StreamBooksForAuthor(ctx context.Context, logger *zap.Logger, authorID string) (<-chan entity.Book, <-chan error)
-		GetAuthorInfo(ctx context.Context, logger *zap.Logger, authorID string) (string, error)
+		StreamBooksForAuthor(ctx context.Context, logger *zap.Logger, authorID string) (<-chan dto.Book, <-chan error)
+		GetAuthorInfo(ctx context.Context, logger *zap.Logger, authorID string) (*library.GetAuthorInfoResponse, error)
 		GetAuthorByID(ctx context.Context, logger *zap.Logger, authorID string) (entity.Author, error)
 	}
 
 	BooksUseCase interface {
-		RegisterBook(ctx context.Context, logger *zap.Logger, name string, authorIDs []string) (entity.Book, error)
-		GetBook(ctx context.Context, logger *zap.Logger, bookID string) (entity.Book, error)
+		RegisterBook(ctx context.Context, logger *zap.Logger, name string, authorIDs []string) (*library.AddBookResponse, error)
+		GetBook(ctx context.Context, logger *zap.Logger, bookID string) (*library.GetBookInfoResponse, error)
 		UpdateBook(ctx context.Context, logger *zap.Logger, bookID string, bookName string, authorIDs []string) error
 	}
 )

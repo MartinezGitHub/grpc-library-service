@@ -3,6 +3,8 @@ package library
 import (
 	"context"
 	"encoding/json"
+	"github.com/project/library/generated/api/library"
+	"github.com/project/library/internal/dto"
 
 	"github.com/project/library/internal/usecase/repository"
 
@@ -12,7 +14,13 @@ import (
 	"github.com/project/library/internal/entity"
 )
 
-func (l *libraryImpl) RegisterAuthor(ctx context.Context, logger *zap.Logger, authorName string) (string, error) {
+//RegisterAuthor(ctx context.Context, logger *zap.Logger, authorName string) (*library.RegisterAuthorResponse, error)
+//ChangeAuthorInfo(ctx context.Context, logger *zap.Logger, authorID string, authorName string) error
+//StreamBooksForAuthor(ctx context.Context, logger *zap.Logger, authorID string) (<-chan dto.Book, <-chan error)
+//GetAuthorInfo(ctx context.Context, logger *zap.Logger, authorID string) (*library.GetAuthorInfoResponse, error)
+//GetAuthorByID(ctx context.Context, logger *zap.Logger, authorID string) (entity.Author, error)
+
+func (l *libraryImpl) RegisterAuthor(ctx context.Context, logger *zap.Logger, authorName string) (*library.RegisterAuthorResponse, error) {
 	var author entity.Author
 	err := l.transactor.WithTx(ctx, func(ctx context.Context) error {
 		var txErr error
@@ -41,10 +49,12 @@ func (l *libraryImpl) RegisterAuthor(ctx context.Context, logger *zap.Logger, au
 	})
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return author.ID, nil
+	return &library.RegisterAuthorResponse{
+		Id: author.ID,
+	}, nil
 }
 
 func (l *libraryImpl) ChangeAuthorInfo(ctx context.Context, logger *zap.Logger, authorID string, authorName string) error {
@@ -59,14 +69,32 @@ func (l *libraryImpl) GetAuthorByID(ctx context.Context, logger *zap.Logger, aut
 	return author, nil
 }
 
-func (l *libraryImpl) GetAuthorInfo(ctx context.Context, logger *zap.Logger, authorID string) (string, error) {
+func (l *libraryImpl) GetAuthorInfo(ctx context.Context, logger *zap.Logger, authorID string) (*library.GetAuthorInfoResponse, error) {
 	author, err := l.GetAuthorByID(ctx, logger, authorID)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return author.Name, nil
+	return &library.GetAuthorInfoResponse{
+		Id:   author.ID,
+		Name: author.Name,
+	}, nil
 }
 
-func (l *libraryImpl) StreamBooksForAuthor(ctx context.Context, logger *zap.Logger, authorID string) (<-chan entity.Book, <-chan error) {
-	return l.booksRepository.StreamBooksByAuthorID(ctx, logger, authorID)
+func (l *libraryImpl) StreamBooksForAuthor(ctx context.Context, logger *zap.Logger, authorID string) (<-chan dto.Book, <-chan error) {
+	entityCh, errCh := l.booksRepository.StreamBooksByAuthorID(ctx, logger, authorID)
+
+	dtoCh := make(chan dto.Book)
+	go func() {
+		defer close(dtoCh)
+		for book := range entityCh {
+			dtoCh <- dto.Book{
+				ID:        book.ID,
+				Name:      book.Name,
+				AuthorIDs: book.AuthorIDs,
+			}
+		}
+	}()
+
+	return dtoCh, errCh
+	//return l.booksRepository.StreamBooksByAuthorID(ctx, logger, authorID)
 }

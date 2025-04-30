@@ -28,12 +28,15 @@ type (
 		SendMessage(ctx context.Context, idempotencyKey string, kind OutboxKind, message []byte) error
 		GetMessages(ctx context.Context, batchSize int, inProgressTTL time.Duration) ([]OutboxData, error)
 		MarkAsProcessed(ctx context.Context, idempotencyKeys []string) error
+		MarkAsFailed(ctx context.Context, idempotencyKeys []string, maxRetries int, baseRetryTTL time.Duration) error
+		MarkAsAbandoned(ctx context.Context, idempotencyKeys []string) error
 	}
 
 	OutboxData struct {
 		IdempotencyKey string
 		Kind           OutboxKind
 		RawData        []byte
+		Attempts       int
 	}
 )
 

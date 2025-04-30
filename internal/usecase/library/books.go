@@ -3,6 +3,8 @@ package library
 import (
 	"context"
 	"encoding/json"
+	"github.com/project/library/generated/api/library"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/project/library/internal/usecase/repository"
 
@@ -12,7 +14,7 @@ import (
 	"github.com/project/library/internal/entity"
 )
 
-func (l *libraryImpl) RegisterBook(ctx context.Context, logger *zap.Logger, name string, authorIDs []string) (entity.Book, error) {
+func (l *libraryImpl) RegisterBook(ctx context.Context, logger *zap.Logger, name string, authorIDs []string) (*library.AddBookResponse, error) {
 	var book entity.Book
 	err := l.transactor.WithTx(ctx, func(ctx context.Context) error {
 		var txErr error
@@ -43,14 +45,35 @@ func (l *libraryImpl) RegisterBook(ctx context.Context, logger *zap.Logger, name
 	})
 
 	if err != nil {
-		return entity.Book{}, err
+		return nil, err
 	}
 
-	return book, err
+	return &library.AddBookResponse{
+		Book: &library.Book{
+			Id:        book.ID,
+			Name:      book.Name,
+			AuthorId:  book.AuthorIDs,
+			CreatedAt: timestamppb.New(book.CreatedAt),
+			UpdatedAt: timestamppb.New(book.UpdatedAt),
+		},
+	}, err
 }
 
-func (l *libraryImpl) GetBook(ctx context.Context, logger *zap.Logger, bookID string) (entity.Book, error) {
-	return l.booksRepository.GetBook(ctx, logger, bookID)
+func (l *libraryImpl) GetBook(ctx context.Context, logger *zap.Logger, bookID string) (*library.GetBookInfoResponse, error) {
+	book, err := l.booksRepository.GetBook(ctx, logger, bookID)
+
+	if err != nil {
+		return nil, err
+	}
+	return &library.GetBookInfoResponse{
+		Book: &library.Book{
+			Id:        book.ID,
+			Name:      book.Name,
+			AuthorId:  book.AuthorIDs,
+			CreatedAt: timestamppb.New(book.CreatedAt),
+			UpdatedAt: timestamppb.New(book.UpdatedAt),
+		},
+	}, nil
 }
 
 func (l *libraryImpl) UpdateBook(ctx context.Context, logger *zap.Logger, bookID string, bookName string, authorIDs []string) error {
